@@ -1,14 +1,10 @@
-# ZCode CLIProxyAPI Plugin
+# ZCode CLIProxyAPI 插件
 
-`zcode` is a CLIProxyAPI dynamic-library plugin that exposes the BigModel
-Coding Plan upstream through CPA as a static Anthropic-format model provider.
+`zcode` 是一个 CLIProxyAPI 动态库插件，用于把 BigModel Coding Plan 上游接入 CPA，并以 Anthropic 格式提供静态模型执行器。
 
-The plugin injects ZCode desktop fingerprint headers, maps model names, and
-supports streaming. It intentionally consumes Anthropic-format payloads and
-lets CPA translate OpenAI/Responses/Claude client protocols through its
-normal executor pipeline.
+插件会注入 ZCode 桌面客户端指纹 headers，支持模型名映射和流式请求。它接收 Anthropic 格式 payload，其他 OpenAI / Responses / Claude 客户端协议由 CPA 的执行器管道统一转换。
 
-## Configuration
+## 配置
 
 ```yaml
 plugins:
@@ -17,21 +13,34 @@ plugins:
     zcode:
       enabled: true
       priority: 1
-      api_key: ""                    # empty: pass through each CPA client key
+
+      # 固定 BigModel API key；留空时透传 CPA 客户端请求的 API key
+      api_key: ""
+
       base_url: "https://open.bigmodel.cn/api/anthropic"
-      dynamic_models: true          # fetch GET /v1/models from upstream
+
+      # 动态模型发现，默认 true
+      dynamic_models: true
+
+      # 模型列表缓存时间，单位秒，默认 300
       model_cache_seconds: 300
-      models:                         # fallback if discovery fails/disabled
+
+      # 兜底模型；动态发现关闭、api_key 为空或上游失败时使用
+      models:
         - "GLM-5.3"
         - "GLM-5.3-Flash"
-      model_map: {}                  # client model -> upstream model
+
+      # 客户端模型名 -> 上游模型名
+      model_map: {}
+
       timeout_seconds: 300
+
       mimic:
         enabled: true
         app_version: "3.14.4"
-        session_id: ""               # empty: generated per plugin process
-        trace_id: ""                 # empty: generated per plugin process
-        user_id: ""                  # empty: stable ID derived from API key
+        session_id: ""               # 留空：每个插件进程生成一次
+        trace_id: ""                 # 留空：每个插件进程生成一次
+        user_id: ""                  # 留空：从 API key 派生稳定 ID
         platform: "win32-x64"
         os_category: "windows"
         os_version: "10.0.19045"
@@ -41,13 +50,37 @@ plugins:
         title: "Z Code@electron"
 ```
 
-Dynamic model discovery is enabled by default. The plugin requests `GET <base_url>/v1/models` with ZCode fingerprint headers, deduplicates IDs, and caches the result for `model_cache_seconds` (default 300). The configured `models` list is the fallback if discovery is disabled, `api_key` is omitted, or the upstream request fails.
+## 动态模型发现
 
-`api_key` can be used for a fixed upstream credential. When omitted, the
-request client's `Authorization: Bearer ...` or `x-api-key` header is used
-for the upstream call.
+动态模型发现默认开启。插件会携带 ZCode 指纹 headers 请求：
 
-## Build
+```text
+GET <base_url>/v1/models
+```
+
+返回的模型 ID 会去空、去重后注册到 CPA，并按 `model_cache_seconds` 缓存，默认 300 秒。
+
+以下情况会使用 `models` 兜底列表：
+
+- `dynamic_models: false`
+- `api_key` 为空
+- 上游模型列表请求失败
+- 上游返回为空或格式无效
+
+CPA 静态模型注册阶段没有客户端 API key，因此需要动态发现时应配置固定 `api_key`。
+
+## API key
+
+配置 `api_key` 后，插件会固定使用该 BigModel credential 调用上游。
+
+`api_key` 为空时，每个执行请求会从 CPA 客户端请求中提取：
+
+- `Authorization: Bearer ...`
+- 或 `x-api-key`
+
+并透传给上游。
+
+## 构建
 
 ```bash
 make test
@@ -56,30 +89,32 @@ make build
 make package
 ```
 
-On Windows this creates `dist/zcode.dll`; on macOS, `dist/zcode.dylib`; on
-Linux/FreeBSD, `dist/zcode.so`.
+构建产物：
 
-Install locally by copying the dynamic library to CPA's platform plugin
-directory, for example:
+- Windows: `dist/zcode.dll`
+- macOS: `dist/zcode.dylib`
+- Linux / FreeBSD: `dist/zcode.so`
+
+本地安装时，将动态库复制到 CPA 对应平台的插件目录，例如：
 
 ```bash
 mkdir -p /path/to/CLIProxyAPI/plugins/windows/amd64
 cp dist/zcode.dll /path/to/CLIProxyAPI/plugins/windows/amd64/zcode.dll
 ```
 
-## Release assets
+## 发布资产
 
-Each GitHub release includes:
+每个 GitHub Release 包含：
 
 ```text
 zcode_<version>_<goos>_<goarch>.zip
 checksums.txt
 ```
 
-Each zip contains the shared library at its root.
+每个 zip 的根目录中只包含对应平台的动态库。
 
-## Compatibility
+## 兼容性
 
-This plugin implements the CPA v8 C ABI and uses CLIProxyAPI v8.0.4. It
-registers static models and an executor with `anthropic` input/output format;
-CPA performs protocol translation for other client formats.
+本插件实现 CPA v8 C ABI，依赖 `CLIProxyAPI/v8 v8.0.4`。
+
+插件注册静态模型和 Anthropic 输入/输出格式执行器；其他客户端协议由 CPA 负责转换。
