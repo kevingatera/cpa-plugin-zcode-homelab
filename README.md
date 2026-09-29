@@ -19,7 +19,9 @@ plugins:
       priority: 1
       api_key: ""                    # empty: pass through each CPA client key
       base_url: "https://open.bigmodel.cn/api/anthropic"
-      models:
+      dynamic_models: true          # fetch GET /v1/models from upstream
+      model_cache_seconds: 300
+      models:                         # fallback if discovery fails/disabled
         - "GLM-5.3"
         - "GLM-5.3-Flash"
       model_map: {}                  # client model -> upstream model
@@ -38,6 +40,8 @@ plugins:
         release_channel: "production"
         title: "Z Code@electron"
 ```
+
+Dynamic model discovery is enabled by default. The plugin requests `GET <base_url>/v1/models` with ZCode fingerprint headers, deduplicates IDs, and caches the result for `model_cache_seconds` (default 300). The configured `models` list is the fallback if discovery is disabled, `api_key` is omitted, or the upstream request fails.
 
 `api_key` can be used for a fixed upstream credential. When omitted, the
 request client's `Authorization: Bearer ...` or `x-api-key` header is used

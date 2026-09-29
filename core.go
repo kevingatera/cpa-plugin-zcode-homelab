@@ -23,11 +23,12 @@ var (
 )
 
 const (
-	pluginID          = "zcode"
-	defaultBaseURL    = "https://open.bigmodel.cn/api/anthropic"
-	defaultAppVersion = "3.14.4"
-	maxAttempts       = 3
-	responseLimit     = 64 << 20
+	pluginID                 = "zcode"
+	defaultBaseURL           = "https://open.bigmodel.cn/api/anthropic"
+	defaultAppVersion        = "3.14.4"
+	maxAttempts              = 3
+	responseLimit            = 64 << 20
+	defaultModelCacheSeconds = 300
 )
 
 func init() {
@@ -93,6 +94,8 @@ type pluginConfig struct {
 	BaseURL        string            `yaml:"base_url"`
 	ModelMap       map[string]string `yaml:"model_map"`
 	Models         []string          `yaml:"models"`
+	DynamicModels  *bool             `yaml:"dynamic_models"`
+	ModelCacheSecs int               `yaml:"model_cache_seconds"`
 	TimeoutSeconds int               `yaml:"timeout_seconds"`
 	Mimic          mimic.Config      `yaml:"mimic"`
 }
@@ -138,9 +141,10 @@ func configure(raw []byte) error {
 
 func defaultConfig() pluginConfig {
 	return pluginConfig{
-		BaseURL: defaultBaseURL,
-		Models:  []string{"GLM-5.3", "GLM-5.3-Flash"},
-		Mimic:   mimic.DefaultConfig(),
+		BaseURL:        defaultBaseURL,
+		Models:         []string{"GLM-5.3", "GLM-5.3-Flash"},
+		ModelCacheSecs: defaultModelCacheSeconds,
+		Mimic:          mimic.DefaultConfig(),
 	}
 }
 
@@ -156,6 +160,12 @@ func mergeConfig(base, override pluginConfig) pluginConfig {
 	}
 	if len(override.Models) > 0 {
 		base.Models = override.Models
+	}
+	if override.DynamicModels != nil {
+		base.DynamicModels = override.DynamicModels
+	}
+	if override.ModelCacheSecs > 0 {
+		base.ModelCacheSecs = override.ModelCacheSecs
 	}
 	if override.TimeoutSeconds > 0 {
 		base.TimeoutSeconds = override.TimeoutSeconds
@@ -183,6 +193,9 @@ func normalizeConfig(cfg pluginConfig) pluginConfig {
 	}
 	if cfg.TimeoutSeconds <= 0 {
 		cfg.TimeoutSeconds = 300
+	}
+	if cfg.ModelCacheSecs <= 0 {
+		cfg.ModelCacheSecs = defaultModelCacheSeconds
 	}
 	if cfg.Mimic.AppVersion == "" {
 		cfg.Mimic.AppVersion = defaultAppVersion
@@ -213,7 +226,9 @@ func pluginRegistration() registration {
 				{Name: "api_key", Type: pluginapi.ConfigFieldTypeString, Description: "Fixed BigModel API key. Leave empty to pass each CPA client key through to upstream."},
 				{Name: "base_url", Type: pluginapi.ConfigFieldTypeString, Description: "BigModel Anthropic-compatible upstream base URL."},
 				{Name: "model_map", Type: pluginapi.ConfigFieldTypeObject, Description: "Requested model to upstream model mapping."},
-				{Name: "models", Type: pluginapi.ConfigFieldTypeArray, Description: "Models exposed by this plugin."},
+				{Name: "models", Type: pluginapi.ConfigFieldTypeArray, Description: "Fallback/static model IDs, used when upstream model discovery is disabled or unavailable."},
+				{Name: "dynamic_models", Type: pluginapi.ConfigFieldTypeBoolean, Description: "Fetch model IDs from GET <base_url>/v1/models. Default true."},
+				{Name: "model_cache_seconds", Type: pluginapi.ConfigFieldTypeInteger, Description: "Upstream model list cache TTL in seconds. Default 300."},
 				{Name: "timeout_seconds", Type: pluginapi.ConfigFieldTypeInteger, Description: "Non-streaming request timeout in seconds."},
 				{Name: "mimic", Type: pluginapi.ConfigFieldTypeObject, Description: "ZCode client fingerprint settings."},
 			},
@@ -230,9 +245,13 @@ func pluginRegistration() registration {
 }
 
 func configuredModels() []pluginapi.ModelInfo {
+	return modelsFromIDs(modelIDs(context.Background()))
+}
+
+func modelsFromIDs(ids []string) []pluginapi.ModelInfo {
 	cfg := currentConfig()
-	models := make([]pluginapi.ModelInfo, 0, len(cfg.Models))
-	for _, id := range cfg.Models {
+	models := make([]pluginapi.ModelInfo, 0, len(ids))
+	for _, id := range ids {
 		id = strings.TrimSpace(id)
 		if id == "" {
 			continue
