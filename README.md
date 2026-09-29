@@ -102,6 +102,10 @@ mkdir -p /path/to/CLIProxyAPI/plugins/windows/amd64
 cp dist/zcode.dll /path/to/CLIProxyAPI/plugins/windows/amd64/zcode.dll
 ```
 
+## 开源协议
+
+MIT License，详见 [LICENSE](LICENSE)。
+
 ## 发布资产
 
 每个 GitHub Release 包含：
