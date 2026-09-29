@@ -53,22 +53,11 @@ extern void cliproxyPluginShutdown(void);
 import "C"
 
 import (
-	"bytes"
-	"context"
-	"encoding/json"
 	"errors"
-	"fmt"
-	"io"
-	"net/http"
-	"strings"
-	"sync/atomic"
-	"time"
 	"unsafe"
 
-	"github.com/rensumo/cpa-plugin-zcode/internal/mimic"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginapi"
-	"gopkg.in/yaml.v3"
 )
 
 const (
@@ -79,81 +68,8 @@ const (
 	responseLimit     = 64 << 20
 )
 
-var (
-	pluginVersion = "0.1.0"
-	activeConfig  atomic.Value
-)
-
-func init() {
-	activeConfig.Store(defaultConfig())
-}
-
-func main() {}
-
-type envelope struct {
-	OK     bool            `json:"ok"`
-	Result json.RawMessage `json:"result,omitempty"`
-	Error  *envelopeError  `json:"error,omitempty"`
-}
-
-type envelopeError struct {
-	Code       string `json:"code"`
-	Message    string `json:"message"`
-	HTTPStatus int    `json:"http_status,omitempty"`
-}
-
-type lifecycleRequest struct {
-	ConfigYAML []byte `json:"config_yaml"`
-}
-
-type registration struct {
-	SchemaVersion uint32                   `json:"schema_version"`
-	Metadata      pluginapi.Metadata       `json:"metadata"`
-	Capabilities  registrationCapabilities `json:"capabilities"`
-}
-
-type registrationCapabilities struct {
-	ModelRegistrar        bool                         `json:"model_registrar"`
-	ModelProvider         bool                         `json:"model_provider"`
-	Executor              bool                         `json:"executor"`
-	ExecutorModelScope    pluginapi.ExecutorModelScope `json:"executor_model_scope"`
-	ExecutorInputFormats  []string                     `json:"executor_input_formats"`
-	ExecutorOutputFormats []string                     `json:"executor_output_formats"`
-}
-
-type identifierResponse struct {
-	Identifier string `json:"identifier"`
-}
-
-type rpcExecutorRequest struct {
-	pluginapi.ExecutorRequest
-	StreamID       string `json:"stream_id,omitempty"`
-	HostCallbackID string `json:"host_callback_id,omitempty"`
-}
-
-type rpcStreamEmitRequest struct {
-	StreamID string `json:"stream_id"`
-	Payload  []byte `json:"payload,omitempty"`
-	Error    string `json:"error,omitempty"`
-}
-
-type rpcStreamCloseRequest struct {
-	StreamID string `json:"stream_id"`
-	Error    string `json:"error,omitempty"`
-}
-
-type pluginConfig struct {
-	APIKey         string            `yaml:"api_key"`
-	BaseURL        string            `yaml:"base_url"`
-	ModelMap       map[string]string `yaml:"model_map"`
-	Models         []string          `yaml:"models"`
-	TimeoutSeconds int               `yaml:"timeout_seconds"`
-	Mimic          mimic.Config      `yaml:"mimic"`
-}
-
 // Config is exported for the vendored mimic package.
-type Config = pluginConfig
-
+//
 //export cliproxy_plugin_init
 func cliproxy_plugin_init(host *C.cliproxy_host_api, plugin *C.cliproxy_plugin_api) C.int {
 	if plugin == nil {
