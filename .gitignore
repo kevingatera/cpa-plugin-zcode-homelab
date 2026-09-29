@@ -1,0 +1,17 @@
+.env
+config.yaml
+accounts.json
+*.log
+node_modules/
+__pycache__/
+dist/
+zcode2api.exe
+zcode2api
+*.exe
+*.exe~
+*.state.json
+
+# Local packaging output
+dist/
+*.sha256
+checksums.txt
