@@ -59,14 +59,6 @@ import (
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
 )
 
-const (
-	pluginID          = "zcode"
-	defaultBaseURL    = "https://open.bigmodel.cn/api/anthropic"
-	defaultAppVersion = "3.14.4"
-	maxAttempts       = 3
-	responseLimit     = 64 << 20
-)
-
 // Config is exported for the vendored mimic package.
 //
 //export cliproxy_plugin_init
