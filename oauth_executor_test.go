@@ -17,7 +17,7 @@ func TestOAuthAccountExecutionDoesNotForwardConsumerKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if req.URL != zcodeOrigin+"/api/v1/zcode-plan/anthropic/v1/messages" || req.Headers.Get("Authorization") != "Bearer account-jwt" || req.Headers.Get("x-api-key") != "" || req.Headers.Get("X-Device-Mid") != "device-identity" || req.HostCallbackID != "scope" {
+	if req.URL != zcodeOrigin+"/api/v1/zcode-plan/anthropic/messages" || req.Headers.Get("Authorization") != "Bearer account-jwt" || req.Headers.Get("x-api-key") != "" || req.Headers.Get("X-Device-Mid") != "device-identity" || req.HostCallbackID != "scope" {
 		t.Fatalf("incorrect account request")
 	}
 	if strings.Contains(string(req.Body), "consumer-secret") {

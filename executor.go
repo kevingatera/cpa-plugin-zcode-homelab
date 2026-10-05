@@ -40,7 +40,7 @@ func executionRequest(r rpcExecutorRequest) (hostRequest, error) {
 	if err != nil {
 		return hostRequest{}, err
 	}
-	return hostRequest{HTTPRequest: pluginapi.HTTPRequest{Method: "POST", URL: strings.TrimRight(base, "/") + "/v1/messages", Headers: h, Body: payload}, HostCallbackID: r.HostCallbackID}, nil
+	return hostRequest{HTTPRequest: pluginapi.HTTPRequest{Method: "POST", URL: strings.TrimRight(base, "/") + "/messages", Headers: h, Body: payload}, HostCallbackID: r.HostCallbackID}, nil
 }
 
 func handleExecute(method string, raw []byte) ([]byte, error) {
