@@ -47,3 +47,5 @@ make build
 MIT License. The original plugin and fingerprint implementation are credited to rensumo. Native C ABI integration uses CLIProxyAPI v8.0.13.
 
 Live validation: OAuth initialization, credential import, and grant quota retrieval work. Inference currently returns provider code 3012 (unusual activity). Complete the provider verification in native ZCode before retrying; do not bypass its challenge. Start Plan deliberately skips Coding Plan client signing in the native runtime.
+
+Verify the native CLI's selected account in `model_usage.provider_id` and `model_id`, because an unavailable Start Plan selection can fall back to individual-plan GLM-5.3. Do not use CLI exit status alone as Flash evidence. Check the billing balance's entitlement period and expiry, and the read-only claim preview, before describing a 100M allocation as automatically renewable.
