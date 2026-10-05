@@ -17,7 +17,7 @@ func TestOAuthAccountExecutionDoesNotForwardConsumerKey(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if req.URL != zcodeOrigin+"/api/v1/zcode-plan/anthropic/messages" || req.Headers.Get("Authorization") != "Bearer account-jwt" || req.Headers.Get("x-api-key") != "" || req.Headers.Get("X-Device-Mid") != "device-identity" || req.HostCallbackID != "scope" {
+	if req.URL != zcodeOrigin+"/api/v1/zcode-plan/anthropic/v1/messages" || req.Headers.Get("Authorization") != "Bearer account-jwt" || req.Headers.Get("x-api-key") != "" || req.Headers.Get("X-Device-Mid") != "device-identity" || req.HostCallbackID != "scope" {
 		t.Fatalf("incorrect account request")
 	}
 	if strings.Contains(string(req.Body), "consumer-secret") {
@@ -161,5 +161,12 @@ func TestStreamExecutionPreservesChunksAndClosesHostStreams(t *testing.T) {
 	}
 	if string(emitted) != "event: message_start\ndata: {}\n\nevent: message_stop\ndata: {}\n\n" {
 		t.Fatal("stream chunks were lost")
+	}
+}
+
+func TestActivityBlockMessageDoesNotExposeBody(t *testing.T) {
+	err := upstreamFailure(405, []byte(`{"code":3012,"msg":"secret credential must not escape"}`))
+	if !strings.Contains(err.Error(), "unusual activity") || strings.Contains(err.Error(), "secret credential") {
+		t.Fatalf("unsafe or unhelpful error: %v", err)
 	}
 }

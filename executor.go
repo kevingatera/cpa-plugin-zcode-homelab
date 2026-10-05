@@ -14,13 +14,16 @@ func executionRequest(r rpcExecutorRequest) (hostRequest, error) {
 	cfg := currentConfig()
 	var a account
 	_ = json.Unmarshal(r.StorageJSON, &a)
-	base := cfg.BaseURL
+	base := strings.TrimRight(cfg.BaseURL, "/")
+	if !strings.HasSuffix(base, "/v1") {
+		base += "/v1"
+	}
 	var h http.Header
 	if a.Type == pluginID {
 		if _, err := authRecord(a, ""); err != nil {
 			return hostRequest{}, err
 		}
-		base = zcodeOrigin + "/api/v1/zcode-plan/anthropic"
+		base = zcodeOrigin + "/api/v1/zcode-plan/anthropic/v1"
 		h = sourceHeaders(a.Token, a.DeviceMid)
 		// Start Plan Anthropic uses the same bearer JWT as billing/balance.
 	} else {
@@ -89,11 +92,15 @@ func handleExecute(method string, raw []byte) ([]byte, error) {
 func upstreamFailure(status int, body []byte) error {
 	// Include provider error type, never raw bodies that may contain credentials.
 	var obj struct {
+		Code  int `json:"code"`
 		Error struct {
 			Type string `json:"type"`
 		} `json:"error"`
 	}
 	_ = json.Unmarshal(body, &obj)
+	if obj.Code == 3012 {
+		return pluginabi.NewError("zcode_activity_block", "ZCode blocked this request due to unusual activity; complete the provider verification in the native ZCode app", status)
+	}
 	return pluginabi.NewError("zcode_upstream_error", fmt.Sprintf("ZCode upstream HTTP %d (%s)", status, obj.Error.Type), status)
 }
 

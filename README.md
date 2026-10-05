@@ -2,7 +2,7 @@
 
 This homelab fork of [rensumo/cpa-plugin-zcode](https://github.com/rensumo/cpa-plugin-zcode) connects an authenticated ZCode account to CLIProxyAPI. It adds the executor methods missing from the original plugin, native browser OAuth initialization and polling, and quota reporting for the ZCode Flash grant.
 
-OAuth accounts use `https://zcode.z.ai/api/v1/zcode-plan/anthropic/messages`. This is the native Start Plan endpoint, separate from ordinary Coding Plan API-key traffic. Account models appear as `zcode/GLM-5.3-Flash`, so other providers keep their existing GLM routes. The plugin never forwards a consumer's gateway key to an upstream service.
+OAuth accounts use `https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages`. This is the native Start Plan endpoint, separate from ordinary Coding Plan API-key traffic. Account models appear as `zcode/GLM-5.3-Flash`, so other providers keep their existing GLM routes. The plugin never forwards a consumer's gateway key to an upstream service.
 
 ## Install and configure
 
@@ -45,3 +45,5 @@ make build
 ```
 
 MIT License. The original plugin and fingerprint implementation are credited to rensumo. Native C ABI integration uses CLIProxyAPI v8.0.13.
+
+Live validation: OAuth initialization, credential import, and grant quota retrieval work. Inference currently returns provider code 3012 (unusual activity). Complete the provider verification in native ZCode before retrying; do not bypass its challenge. Start Plan deliberately skips Coding Plan client signing in the native runtime.
