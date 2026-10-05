@@ -53,7 +53,9 @@ extern void cliproxyPluginShutdown(void);
 import "C"
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"unsafe"
 
 	"github.com/router-for-me/CLIProxyAPI/v8/sdk/pluginabi"
@@ -126,4 +128,38 @@ func writeResponse(response *C.cliproxy_buffer, raw []byte) {
 	}
 	response.ptr = ptr
 	response.len = C.size_t(len(raw))
+}
+
+// callHost keeps upstream requests inside CPA's transport and redacted archive.
+func nativeHostRPC(method string, request any) (json.RawMessage, error) {
+	var out json.RawMessage
+	raw, err := json.Marshal(request)
+	if err != nil {
+		return out, err
+	}
+	name := C.CString(method)
+	defer C.free(unsafe.Pointer(name))
+	var ptr *C.uint8_t
+	if len(raw) > 0 {
+		ptr = (*C.uint8_t)(unsafe.Pointer(&raw[0]))
+	}
+	var resp C.cliproxy_buffer
+	code := C.call_host_api(name, ptr, C.size_t(len(raw)), &resp)
+	if resp.ptr != nil {
+		defer C.free_host_buffer(resp.ptr, resp.len)
+	}
+	if code != 0 && resp.len == 0 {
+		return out, fmt.Errorf("host callback %s failed (%d)", method, code)
+	}
+	var envelope pluginabi.Envelope
+	if err = json.Unmarshal(C.GoBytes(resp.ptr, C.int(resp.len)), &envelope); err != nil {
+		return out, err
+	}
+	if !envelope.OK {
+		if envelope.Error != nil {
+			return out, envelope.Error
+		}
+		return out, fmt.Errorf("host callback %s failed", method)
+	}
+	return envelope.Result, nil
 }

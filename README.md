@@ -1,124 +1,47 @@
-# ZCode CLIProxyAPI 插件
+# ZCode OAuth plugin for CLIProxyAPI
 
-`zcode` 是一个 CLIProxyAPI 动态库插件，用于把 BigModel Coding Plan 上游接入 CPA，并以 Anthropic 格式提供静态模型执行器。
+This homelab fork of [rensumo/cpa-plugin-zcode](https://github.com/rensumo/cpa-plugin-zcode) connects an authenticated ZCode account to CLIProxyAPI. It adds the executor methods missing from the original plugin, native browser OAuth initialization and polling, and quota reporting for the ZCode Flash grant.
 
-插件会注入 ZCode 桌面客户端指纹 headers，支持模型名映射和流式请求。它接收 Anthropic 格式 payload，其他 OpenAI / Responses / Claude 客户端协议由 CPA 的执行器管道统一转换。
+OAuth accounts use `https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages`. This is the native Start Plan endpoint, separate from ordinary Coding Plan API-key traffic. Account models appear as `zcode/GLM-5.3-Flash`, so other providers keep their existing GLM routes. The plugin never forwards a consumer's gateway key to an upstream service.
 
-## 配置
+## Install and configure
+
+Use the fork's tagged GitHub release. CI builds the Linux amd64 shared library in `golang:1.26-bookworm`, matching the homelab's Debian container. Download the release ZIP and verify it against `checksums.txt` before installing `zcode.so` in the mounted plugin directory. Preserve the existing plugin and host config before an update.
+
+Add this entry under `plugins.configs` without rewriting the rest of the host YAML:
 
 ```yaml
-plugins:
+zcode:
   enabled: true
-  configs:
-    zcode:
-      enabled: true
-      priority: 1
-
-      # 固定 BigModel API key；留空时透传 CPA 客户端请求的 API key
-      api_key: ""
-
-      base_url: "https://open.bigmodel.cn/api/anthropic"
-
-      # 动态模型发现，默认 true
-      dynamic_models: true
-
-      # 模型列表缓存时间，单位秒，默认 300
-      model_cache_seconds: 300
-
-      # 兜底模型；动态发现关闭、api_key 为空或上游失败时使用
-      models:
-        - "GLM-5.3"
-        - "GLM-5.3-Flash"
-
-      # 客户端模型名 -> 上游模型名
-      model_map: {}
-
-      timeout_seconds: 300
-
-      mimic:
-        enabled: true
-        app_version: "3.14.4"
-        session_id: ""               # 留空：每个插件进程生成一次
-        trace_id: ""                 # 留空：每个插件进程生成一次
-        user_id: ""                  # 留空：从 API key 派生稳定 ID
-        platform: "win32-x64"
-        os_category: "windows"
-        os_version: "10.0.19045"
-        language: "zh-CN"
-        timezone: "Asia/Shanghai"
-        release_channel: "production"
-        title: "Z Code@electron"
+  dynamic_models: false
+  mimic:
+    enabled: true
+    app_version: "3.14.4"
+    platform: "linux-x64"
+    os_category: "linux"
+    language: "en-US"
+    timezone: "America/Toronto"
+    title: "Z Code@cli"
 ```
 
-## 动态模型发现
+Start login through authenticated `GET /v8/management/oauth/auth-url?provider=zcode`, open the returned URL, and poll `/v8/management/oauth/status?state=...`. Cancel abandoned sessions with `DELETE /v8/management/oauth/session?state=...`. The host persists the completed account in its private auth directory. The native flow issues a persistent ZCode JWT without a refresh token or expiry claim; if the server revokes it, repeat browser login. The plugin preserves this credential during host refresh rather than inventing a refresh protocol.
 
-动态模型发现默认开启。插件会携带 ZCode 指纹 headers 请求：
+To reuse the workstation's existing desktop login, run `python3 tools/import-local-account.py` on that workstation. It decrypts the existing local credential in memory, obtains the management key from libsecret, and uploads the account directly to the host's credential store. It does not change desktop settings or copy plaintext credentials to a local file. The tool requires Python `cryptography` and the existing libsecret management key.
 
-```text
-GET <base_url>/v1/models
-```
+For an ordinary Coding Plan API key, configure `api_key` and `base_url` instead. Static models are registered only when that key is configured. OAuth accounts always use the separate Start Plan endpoint.
 
-返回的模型 ID 会去空、去重后注册到 CPA，并按 `model_cache_seconds` 缓存，默认 300 秒。
+## Check operation
 
-以下情况会使用 `models` 兜底列表：
+List `/v8/management/plugins` and `/v8/management/credentials`, then check `/v1/models` for `zcode/GLM-5.3-Flash`. Test both a non-streaming and streaming prompt. Quota is available through authenticated `POST /v8/management/plugins/zcode/quota` with `{"auth_index":"..."}`. Compare available tokens before and after a request; concurrent desktop traffic can also consume the grant.
 
-- `dynamic_models: false`
-- `api_key` 为空
-- 上游模型列表请求失败
-- 上游返回为空或格式无效
+The quota endpoint reports the provider's available tokens and grant expiry. It does not assume daily renewal. An advertised 100M allocation can be returned as a `one_time` grant with a fixed expiry; claiming or renewing an offer belongs to the native ZCode account flow. Quota inspection never claims an offer or solves its CAPTCHA.
 
-CPA 静态模型注册阶段没有客户端 API key，因此需要动态发现时应配置固定 `api_key`。
+All execution uses the host's HTTP callbacks, preserving cancellation, transport policy and the homelab's redacted request archive. No new inference timeouts are introduced. No external request or credential is needed for the unit suite:
 
-## API key
-
-配置 `api_key` 后，插件会固定使用该 BigModel credential 调用上游。
-
-`api_key` 为空时，每个执行请求会从 CPA 客户端请求中提取：
-
-- `Authorization: Bearer ...`
-- 或 `x-api-key`
-
-并透传给上游。
-
-## 构建
-
-```bash
-make test
+```sh
+go test -race ./...
 make vet
 make build
-make package
 ```
 
-构建产物：
-
-- Windows: `dist/zcode.dll`
-- macOS: `dist/zcode.dylib`
-- Linux / FreeBSD: `dist/zcode.so`
-
-本地安装时，将动态库复制到 CPA 对应平台的插件目录，例如：
-
-```bash
-mkdir -p /path/to/CLIProxyAPI/plugins/windows/amd64
-cp dist/zcode.dll /path/to/CLIProxyAPI/plugins/windows/amd64/zcode.dll
-```
-
-## 开源协议
-
-MIT License，详见 [LICENSE](LICENSE)。
-
-## 发布资产
-
-每个 GitHub Release 包含：
-
-```text
-zcode_<version>_<goos>_<goarch>.zip
-checksums.txt
-```
-
-每个 zip 的根目录中只包含对应平台的动态库。
-
-## 兼容性
-
-本插件实现 CPA v8 C ABI，依赖 `CLIProxyAPI/v8 v8.0.4`。
-
-插件注册静态模型和 Anthropic 输入/输出格式执行器；其他客户端协议由 CPA 负责转换。
+MIT License. The original plugin and fingerprint implementation are credited to rensumo. Native C ABI integration uses CLIProxyAPI v8.0.13.

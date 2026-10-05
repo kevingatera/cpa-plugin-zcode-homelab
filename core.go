@@ -60,6 +60,8 @@ type registration struct {
 }
 
 type registrationCapabilities struct {
+	QuotaProvider         bool                         `json:"quota_provider"`
+	AuthProvider          bool                         `json:"auth_provider"`
 	ModelRegistrar        bool                         `json:"model_registrar"`
 	ModelProvider         bool                         `json:"model_provider"`
 	Executor              bool                         `json:"executor"`
@@ -110,10 +112,27 @@ func handleMethod(method string, request []byte) ([]byte, error) {
 			return nil, errConfigure
 		}
 		return okEnvelope(pluginRegistration())
+	case pluginabi.MethodQuotaIdentifier:
+		return okEnvelope(identifierResponse{Identifier: pluginID})
+	case pluginabi.MethodQuotaDescribe:
+		return okEnvelope(pluginapi.QuotaDescribeResponse{SupportedProviders: []string{pluginID}, DisplayName: "ZCode Flash grant"})
+	case pluginabi.MethodQuotaFetch:
+		return handleQuota(request)
+	case pluginabi.MethodAuthIdentifier:
+		return okEnvelope(identifierResponse{Identifier: pluginID})
+	case pluginabi.MethodAuthParse, pluginabi.MethodAuthLoginStart, pluginabi.MethodAuthLoginPoll, pluginabi.MethodAuthRefresh:
+		return handleAuth(method, request)
+	case pluginabi.MethodExecutorExecute, pluginabi.MethodExecutorExecuteStream:
+		return handleExecute(method, request)
 	case pluginabi.MethodModelRegister:
 		return okEnvelope(pluginapi.ModelRegistrationResponse{Provider: pluginID, Models: configuredModels()})
-	case pluginabi.MethodModelStatic, pluginabi.MethodModelForAuth:
+	case pluginabi.MethodModelStatic:
+		if currentConfig().APIKey == "" {
+			return okEnvelope(pluginapi.ModelResponse{Provider: pluginID})
+		}
 		return okEnvelope(pluginapi.ModelResponse{Provider: pluginID, Models: configuredModels()})
+	case pluginabi.MethodModelForAuth:
+		return okEnvelope(pluginapi.ModelResponse{Provider: pluginID, Models: modelsFromIDs([]string{"GLM-5.3-Flash"})})
 	case pluginabi.MethodExecutorIdentifier:
 		return okEnvelope(identifierResponse{Identifier: pluginID})
 	default:
@@ -221,9 +240,9 @@ func pluginRegistration() registration {
 			Name:             "ZCode",
 			Version:          pluginVersion,
 			Author:           "rensumo",
-			GitHubRepository: "https://github.com/rensumo/cpa-plugin-zcode",
+			GitHubRepository: "https://github.com/kevingatera/cpa-plugin-zcode-homelab",
 			ConfigFields: []pluginapi.ConfigField{
-				{Name: "api_key", Type: pluginapi.ConfigFieldTypeString, Description: "Fixed BigModel API key. Leave empty to pass each CPA client key through to upstream."},
+				{Name: "api_key", Type: pluginapi.ConfigFieldTypeString, Description: "Fixed Coding Plan API key for static models. Leave empty for OAuth-only accounts."},
 				{Name: "base_url", Type: pluginapi.ConfigFieldTypeString, Description: "BigModel Anthropic-compatible upstream base URL."},
 				{Name: "model_map", Type: pluginapi.ConfigFieldTypeObject, Description: "Requested model to upstream model mapping."},
 				{Name: "models", Type: pluginapi.ConfigFieldTypeArray, Description: "Fallback/static model IDs, used when upstream model discovery is disabled or unavailable."},
@@ -234,10 +253,12 @@ func pluginRegistration() registration {
 			},
 		},
 		Capabilities: registrationCapabilities{
-			ModelRegistrar:        true,
+			AuthProvider:          true,
+			QuotaProvider:         true,
+			ModelRegistrar:        false,
 			ModelProvider:         true,
 			Executor:              true,
-			ExecutorModelScope:    pluginapi.ExecutorModelScopeStatic,
+			ExecutorModelScope:    pluginapi.ExecutorModelScopeBoth,
 			ExecutorInputFormats:  []string{"anthropic"},
 			ExecutorOutputFormats: []string{"anthropic"},
 		},
@@ -349,22 +370,6 @@ func errorEnvelope(code, message string, status int) []byte {
 		HTTPStatus: status,
 	}})
 	return raw
-}
-
-func requestAPIKey(req pluginapi.ExecutorRequest, cfg pluginConfig) (string, error) {
-	if cfg.APIKey != "" {
-		return cfg.APIKey, nil
-	}
-	authorization := req.Headers.Get("Authorization")
-	if strings.HasPrefix(strings.ToLower(authorization), "bearer ") {
-		if key := strings.TrimSpace(authorization[7:]); key != "" {
-			return key, nil
-		}
-	}
-	if key := strings.TrimSpace(req.Headers.Get("x-api-key")); key != "" {
-		return key, nil
-	}
-	return "", pluginabi.NewError("missing_api_key", "BigModel API key is required", http.StatusUnauthorized)
 }
 
 func mutateModel(raw []byte, model string) []byte {

@@ -33,7 +33,7 @@ func TestRegistrationAndModels(t *testing.T) {
 	if err := json.Unmarshal(modelEnv.Result, &models); err != nil {
 		t.Fatalf("decode model result: %v", err)
 	}
-	if len(models.Models) != 1 || models.Models[0].ID != "test-model" {
+	if len(models.Models) != 0 {
 		t.Fatalf("models = %#v", models)
 	}
 }
@@ -54,17 +54,5 @@ func TestModelMappingAndConfig(t *testing.T) {
 	}
 	if currentConfig().APIKey != "test-key" {
 		t.Fatalf("api key was not configured")
-	}
-}
-
-func TestAPIKeyFallback(t *testing.T) {
-	_, _ = handleMethod(pluginabi.MethodPluginRegister, []byte(`{}`))
-	req := pluginapi.ExecutorRequest{Headers: map[string][]string{"Authorization": {"Bearer client-key"}}}
-	key, err := requestAPIKey(req, currentConfig())
-	if err != nil {
-		t.Fatalf("requestAPIKey: %v", err)
-	}
-	if key != "client-key" {
-		t.Fatalf("key = %q", key)
 	}
 }

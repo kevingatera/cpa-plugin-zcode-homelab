@@ -26,7 +26,7 @@ type Config struct {
 }
 
 func DefaultConfig() Config {
-	return Config{Enabled: true, AppVersion: "3.14.4", Platform: "win32-x64", OSCategory: "windows", OSVersion: "10.0.19045", Language: "zh-CN", Timezone: "Asia/Shanghai", ReleaseChannel: "production", Title: "Z Code@electron"}
+	return Config{Enabled: true, AppVersion: "3.14.4", Platform: "linux-x64", OSCategory: "linux", OSVersion: "unknown", Language: "en-US", Timezone: "America/Toronto", ReleaseChannel: "production", Title: "Z Code@cli"}
 }
 
 type Fingerprint struct {
