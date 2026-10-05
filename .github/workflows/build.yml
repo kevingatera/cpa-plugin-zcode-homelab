@@ -18,11 +18,11 @@ jobs:
             make vet
             make package VERSION="${1#v}" GOOS=linux GOARCH=amd64
             readelf --version-info dist/zcode.so
+            sort dist/*.sha256 > dist/checksums.txt
           ' bash "$GITHUB_REF_NAME"
       - name: Publish release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          sort dist/*.sha256 > dist/checksums.txt
           gh release create "$GITHUB_REF_NAME" dist/*.zip dist/checksums.txt --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" --notes "ZCode OAuth, Flash grant quota, and host-managed streaming for the homelab. Linux amd64, built on Debian bookworm."
