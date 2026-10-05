@@ -21,7 +21,7 @@ CHECKSUMS_PATH ?= $(BUILD_DIR)/checksums.txt
 
 build:
 	mkdir -p $(dir $(PLUGIN_OUTPUT))
-	CGO_ENABLED=1 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -buildmode=c-shared -ldflags "$(GO_LDFLAGS)" -o $(PLUGIN_OUTPUT) .
+	CGO_ENABLED=1 GOOS=$(GOOS) GOARCH=$(GOARCH) go build -buildvcs=false -trimpath -buildmode=c-shared -ldflags "$(GO_LDFLAGS)" -o $(PLUGIN_OUTPUT) .
 	rm -f $(PLUGIN_HEADER)
 
 test:
