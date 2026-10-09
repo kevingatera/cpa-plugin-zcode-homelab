@@ -18,6 +18,8 @@ const zcodeOrigin = "https://zcode.z.ai"
 
 type account struct {
 	Type      string `json:"type"`
+	AuthKind  string `json:"auth_kind,omitempty"`
+	APIKey    string `json:"api_key,omitempty"`
 	Token     string `json:"access_token"`
 	DeviceMid string `json:"device_mid"`
 	Email     string `json:"email,omitempty"`
@@ -46,7 +48,20 @@ func sourceHeaders(token, device string) http.Header {
 }
 
 func authRecord(a account, name string) (pluginapi.AuthData, error) {
-	if a.Type != pluginID || strings.TrimSpace(a.Token) == "" {
+	if a.Type != pluginID {
+		return pluginapi.AuthData{}, fmt.Errorf("ZCode account type is required")
+	}
+	if a.AuthKind == "apikey" {
+		if strings.TrimSpace(a.APIKey) == "" {
+			return pluginapi.AuthData{}, fmt.Errorf("ZCode individual Coding Plan API key is required")
+		}
+		if a.Prefix == "" {
+			a.Prefix = "zcode-individual"
+		}
+		raw, err := json.Marshal(a)
+		return pluginapi.AuthData{Provider: pluginID, FileName: name, Label: a.Email, Prefix: a.Prefix, Disabled: a.Disabled, StorageJSON: raw, Metadata: map[string]any{"type": pluginID, "auth_kind": "apikey", "api_key": a.APIKey, "prefix": a.Prefix}, Attributes: map[string]string{"auth_kind": "apikey", "api_key": a.APIKey}}, err
+	}
+	if strings.TrimSpace(a.Token) == "" {
 		return pluginapi.AuthData{}, fmt.Errorf("ZCode OAuth token is required")
 	}
 	if a.DeviceMid == "" {

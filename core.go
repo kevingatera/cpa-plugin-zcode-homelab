@@ -132,6 +132,15 @@ func handleMethod(method string, request []byte) ([]byte, error) {
 		}
 		return okEnvelope(pluginapi.ModelResponse{Provider: pluginID, Models: configuredModels()})
 	case pluginabi.MethodModelForAuth:
+		var req pluginapi.AuthModelRequest
+		if err := json.Unmarshal(request, &req); err != nil {
+			return nil, err
+		}
+		var a account
+		_ = json.Unmarshal(req.StorageJSON, &a)
+		if a.AuthKind == "apikey" {
+			return okEnvelope(pluginapi.ModelResponse{Provider: pluginID, Models: modelsFromIDs([]string{"GLM-5.3", "GLM-5.3-Flash"})})
+		}
 		return okEnvelope(pluginapi.ModelResponse{Provider: pluginID, Models: modelsFromIDs([]string{"GLM-5.3-Flash"})})
 	case pluginabi.MethodExecutorIdentifier:
 		return okEnvelope(identifierResponse{Identifier: pluginID})

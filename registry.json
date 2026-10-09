@@ -4,9 +4,9 @@
     {
       "id": "zcode",
       "name": "ZCode OAuth (homelab)",
-      "description": "Native ZCode OAuth, Flash grant quota, and host-managed streaming.",
+      "description": "Native ZCode OAuth and individual Coding Plan credentials, separate quotas, and streaming.",
       "author": "rensumo / kevingatera",
-      "version": "0.2.0-homelab.6",
+      "version": "0.2.0-homelab.7",
       "repository": "https://github.com/kevingatera/cpa-plugin-zcode-homelab",
       "license": "MIT",
       "tags": [

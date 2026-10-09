@@ -4,6 +4,8 @@ This homelab fork of [rensumo/cpa-plugin-zcode](https://github.com/rensumo/cpa-p
 
 OAuth accounts use `https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages`. This is the native Start Plan endpoint, separate from ordinary Coding Plan API-key traffic. Account models appear as `zcode/GLM-5.3-Flash`, so other providers keep their existing GLM routes. The plugin never forwards a consumer's gateway key to an upstream service.
 
+Individual Coding Plan credentials use `auth_kind: apikey` and `api_key` in a protected ZCode auth file, with prefix `zcode-individual`. They use `https://api.z.ai/api/anthropic/v1/messages` and expose the verified GLM-5.3 and GLM-5.3-Flash models. Keep API keys out of source, logs and examples. Individual account allowances come from the native monitor quota endpoint; credit and token windows are reported separately from Start Plan balances.
+
 ## Install and configure
 
 Use the fork's tagged GitHub release. CI builds the Linux amd64 shared library in `golang:1.26-bookworm`, matching the homelab's Debian container. Download the release ZIP and verify it against `checksums.txt` before installing `zcode.so` in the mounted plugin directory. Preserve the existing plugin and host config before an update.

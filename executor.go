@@ -23,9 +23,15 @@ func executionRequest(r rpcExecutorRequest) (hostRequest, error) {
 		if _, err := authRecord(a, ""); err != nil {
 			return hostRequest{}, err
 		}
-		base = zcodeOrigin + "/api/v1/zcode-plan/anthropic/v1"
-		h = sourceHeaders(a.Token, a.DeviceMid)
-		h.Set("x-api-key", a.Token)
+		if a.AuthKind == "apikey" {
+			base = "https://api.z.ai/api/anthropic/v1"
+			h = sourceHeaders(a.APIKey, a.DeviceMid)
+			h.Set("x-api-key", a.APIKey)
+		} else {
+			base = zcodeOrigin + "/api/v1/zcode-plan/anthropic/v1"
+			h = sourceHeaders(a.Token, a.DeviceMid)
+			h.Set("x-api-key", a.Token)
+		}
 		// Start Plan Anthropic uses the same bearer JWT as billing/balance.
 	} else {
 		if cfg.APIKey == "" {

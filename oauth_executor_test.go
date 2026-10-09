@@ -170,3 +170,57 @@ func TestActivityBlockMessageDoesNotExposeBody(t *testing.T) {
 		t.Fatalf("unsafe or unhelpful error: %v", err)
 	}
 }
+
+func TestIndividualPlanUsesItsOwnCredentialAndEndpoint(t *testing.T) {
+	activeConfig.Store(defaultConfig())
+	a := account{Type: pluginID, AuthKind: "apikey", APIKey: "individual-secret"}
+	parsed, err := authRecord(a, "individual.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if parsed.Prefix != "zcode-individual" || parsed.Attributes["auth_kind"] != "apikey" {
+		t.Fatal("individual credential misclassified")
+	}
+	raw, _ := json.Marshal(a)
+	for _, streaming := range []bool{false, true} {
+		req, err := executionRequest(rpcExecutorRequest{ExecutorRequest: pluginapi.ExecutorRequest{StorageJSON: raw, Model: "GLM-5.3-Flash", Stream: streaming, Headers: map[string][]string{"Authorization": {"Bearer consumer-secret"}}, Payload: []byte(`{"model":"other","messages":[]}`)}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if req.URL != "https://api.z.ai/api/anthropic/v1/messages" || req.Headers.Get("Authorization") != "Bearer individual-secret" || req.Headers.Get("x-api-key") != "individual-secret" {
+			t.Fatal("incorrect individual request")
+		}
+		if strings.Contains(string(req.Body), "consumer-secret") {
+			t.Fatal("consumer key forwarded")
+		}
+	}
+	if _, err := authRecord(account{Type: pluginID, AuthKind: "apikey"}, "missing.json"); err == nil {
+		t.Fatal("missing individual key accepted")
+	}
+	request, _ := json.Marshal(pluginapi.AuthModelRequest{StorageJSON: raw})
+	result, err := handleMethod(pluginabi.MethodModelForAuth, request)
+	if err != nil || !strings.Contains(string(result), "GLM-5.3-Flash") || !strings.Contains(string(result), `"GLM-5.3"`) {
+		t.Fatal("individual models not registered")
+	}
+}
+
+func TestIndividualQuotaKeepsSeparateWindowsAndRejectsInvalidReports(t *testing.T) {
+	var envelope individualQuotaEnvelope
+	_ = json.Unmarshal([]byte(`{"code":200,"success":true,"data":{"limits":[{"type":"CREDIT_LIMIT","unit":3,"number":5,"percentage":1,"nextResetTime":1791534456361},{"type":"CREDIT_LIMIT","unit":6,"number":1,"percentage":74,"nextResetTime":1791592277983},{"type":"TIME_LIMIT","unit":5,"number":1,"percentage":100}]}}`), &envelope)
+	report, err := normalizeIndividualQuota(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buckets := report.Groups[0].Buckets
+	if len(buckets) != 2 || buckets[0].RemainingFraction != .99 || buckets[1].RemainingFraction != .26 || buckets[0].ResetTime == "" || strings.Contains(report.Subscription.Plan, "Start") {
+		t.Fatal("incorrect individual quota")
+	}
+	envelope.Data.Limits[0].Percentage = nil
+	if _, err := normalizeIndividualQuota(envelope); err == nil {
+		t.Fatal("missing allowance accepted")
+	}
+	envelope.Success = false
+	if _, err := normalizeIndividualQuota(envelope); err == nil {
+		t.Fatal("unsuccessful response accepted")
+	}
+}
