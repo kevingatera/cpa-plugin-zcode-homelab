@@ -4,6 +4,8 @@ This homelab fork of [rensumo/cpa-plugin-zcode](https://github.com/rensumo/cpa-p
 
 OAuth accounts use `https://zcode.z.ai/api/v1/zcode-plan/anthropic/v1/messages`. This is the native Start Plan endpoint, separate from ordinary Coding Plan API-key traffic. Account models appear as `zcode/GLM-5.3-Flash`, so other providers keep their existing GLM routes. The plugin never forwards a consumer's gateway key to an upstream service.
 
+Import the existing native individual account with `python3 tools/import-local-account.py --plan individual`. It decrypts only in memory and uploads over HTTPS. The default import remains Start Plan.
+
 Individual Coding Plan credentials use `auth_kind: apikey` and `api_key` in a protected ZCode auth file, with prefix `zcode-individual`. They use `https://api.z.ai/api/anthropic/v1/messages` and expose the verified GLM-5.3 and GLM-5.3-Flash models. Keep API keys out of source, logs and examples. Individual account allowances come from the native monitor quota endpoint; credit and token windows are reported separately from Start Plan balances.
 
 ## Install and configure
