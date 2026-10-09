@@ -224,3 +224,41 @@ func TestIndividualQuotaKeepsSeparateWindowsAndRejectsInvalidReports(t *testing.
 		t.Fatal("unsuccessful response accepted")
 	}
 }
+
+func TestForwardStreamSplitsTransportChunksWithoutChangingBytes(t *testing.T) {
+	old := hostRPC
+	t.Cleanup(func() { hostRPC = old })
+	chunks := []hostStreamRead{{Payload: []byte("event: message_start\nda")}, {Payload: []byte("ta: {\"type\":\"message_start\"}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"), Done: true}}
+	var emitted [][]byte
+	index := 0
+	hostRPC = func(method string, req any) (json.RawMessage, error) {
+		switch method {
+		case pluginabi.MethodHostHTTPStreamRead:
+			value := chunks[index]
+			index++
+			return json.Marshal(value)
+		case pluginabi.MethodHostStreamEmit:
+			emitted = append(emitted, append([]byte(nil), req.(rpcStreamEmitRequest).Payload...))
+		case pluginabi.MethodHostHTTPStreamClose, pluginabi.MethodHostStreamClose:
+		default:
+			t.Fatalf("unexpected callback %s", method)
+		}
+		return json.RawMessage(`{}`), nil
+	}
+	forwardStream("upstream", "downstream")
+	var joined []byte
+	dataLines := 0
+	for _, line := range emitted {
+		joined = append(joined, line...)
+		if strings.HasPrefix(string(line), "data:") {
+			dataLines++
+		}
+		if strings.Count(string(line), "\n") != 1 {
+			t.Fatal("transport chunks were not split into SSE lines")
+		}
+	}
+	expected := append(append([]byte(nil), chunks[0].Payload...), chunks[1].Payload...)
+	if string(joined) != string(expected) || dataLines != 2 {
+		t.Fatal("SSE transport bytes changed")
+	}
+}

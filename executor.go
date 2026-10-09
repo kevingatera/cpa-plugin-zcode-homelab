@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"github.com/rensumo/cpa-plugin-zcode/internal/mimic"
@@ -140,19 +141,41 @@ func forwardStream(upstream, downstream string) {
 		closeUpstreamStream(upstream)
 		_, _ = callHost[struct{}](pluginabi.MethodHostStreamClose, rpcStreamCloseRequest{StreamID: downstream, Error: message})
 	}()
+	var pending []byte
+	emit := func(payload []byte) bool {
+		if len(payload) == 0 {
+			return true
+		}
+		_, err := callHost[struct{}](pluginabi.MethodHostStreamEmit, rpcStreamEmitRequest{StreamID: downstream, Payload: payload})
+		if err != nil {
+			message = "ZCode downstream stream closed"
+			return false
+		}
+		return true
+	}
 	for {
 		c, err := callHost[hostStreamRead](pluginabi.MethodHostHTTPStreamRead, map[string]string{"stream_id": upstream})
 		if err != nil || c.Error != "" {
 			message = "ZCode upstream stream failed"
 			return
 		}
-		if len(c.Payload) > 0 {
-			if _, err = callHost[struct{}](pluginabi.MethodHostStreamEmit, rpcStreamEmitRequest{StreamID: downstream, Payload: c.Payload}); err != nil {
-				message = "ZCode downstream stream closed"
+		pending = append(pending, c.Payload...)
+		for {
+			newline := bytes.IndexByte(pending, '\n')
+			if newline < 0 {
+				break
+			}
+			if !emit(bytes.Clone(pending[:newline+1])) {
 				return
 			}
+			pending = pending[newline+1:]
+		}
+		if len(pending) > 8*1024*1024 {
+			message = "ZCode SSE line exceeds supported size"
+			return
 		}
 		if c.Done {
+			emit(pending)
 			return
 		}
 	}
