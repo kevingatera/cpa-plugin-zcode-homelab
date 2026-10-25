@@ -7,3 +7,7 @@ Run `gofmt`, `go test -race ./...`, `make vet`, and `make build` before release.
 Preserve the existing JS Handler plugin and other consumers. Host plugin files are `/srv/ssd-apps/cliproxyapi/plugins`; credentials are in the adjacent `auths` directory. Make timestamped config backups and targeted YAML edits. Never print tokens, management keys, or raw credential files.
 
 OAuth uses the native Start Plan endpoint and prefixed models. Do not silently fall back to ordinary Coding Plan API keys: they have separate billing. Do not claim daily renewal from a grant expiry or client header. Only the provider's billing response and live request establish usage. Do not add inference timeouts, print raw upstream errors, or forward consumer API keys to providers.
+
+## Working style
+
+Investigate, decide, act, and report in the same turn; do not leave an actionable open item for the user. Ask only for destructive, irreversible, costly, credential-bound, or genuinely ambiguous actions.
